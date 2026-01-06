@@ -30,7 +30,8 @@ exports.handler = async function(event, context) {
 
   // Get Vemos API credentials from environment variables
   const vemosApiKey = process.env.VEMOS_API_KEY;
-  const vemosApiUrl = process.env.VEMOS_API_URL || 'https://api-v3.vemos.io/venue';
+  const vemosBearerToken = process.env.VEMOS_BEARER_TOKEN;
+  const vemosApiUrl = process.env.VEMOS_API_URL || 'https://api-v3.vemos.io/vemospay/venue';
 
   if (!vemosApiKey) {
     return {
@@ -42,12 +43,23 @@ exports.handler = async function(event, context) {
     };
   }
 
+  if (!vemosBearerToken) {
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        error: 'Vemos Bearer token not configured. Please add VEMOS_BEARER_TOKEN to your environment variables.' 
+      })
+    };
+  }
+
   try {
-    // Fetch venues from Vemos API with API key
+    // Fetch venues from Vemos API with both API key and Bearer token
     const response = await fetch(vemosApiUrl, {
       method: 'GET',
       headers: {
-        'X-API-Key': vemosApiKey,
+        'x-api-key': vemosApiKey,
+        'Authorization': `Bearer ${vemosBearerToken}`,
         'Content-Type': 'application/json'
       }
     });
