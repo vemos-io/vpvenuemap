@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurant Map</title>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+        .mapboxgl-popup-content {
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .popup-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        .popup-address {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .popup-cuisine {
+            font-size: 13px;
+            color: #888;
+            font-style: italic;
+        }
+        .popup-link {
+            display: inline-block;
+            margin-top: 10px;
+            color: #0066cc;
+            text-decoration: none;
+            font-size: 13px;
+        }
+        .popup-link:hover {
+            text-decoration: underline;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading" class="loading">Loading venues...</div>
+    <div id="map"></div>
+
+    <script>
+        // CONFIGURATION
+        const CONFIG = {
+            // Replace with your Mapbox access token
+            mapboxToken: 'YOUR_MAPBOX_ACCESS_TOKEN_HERE',
+            
+            // Vemos API endpoint
+            apiEndpoint: 'https://api-v3.vemos.io/venue',
+            
+            // Default map center (will auto-adjust to fit all restaurants)
+            defaultCenter: [-98.5795, 39.8283], // Center of USA
+            defaultZoom: 4
+        };
+
+        // Initialize Mapbox
+        mapboxgl.accessToken = CONFIG.mapboxToken;
+
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v12', // You can change this style
+            center: CONFIG.defaultCenter,
+            zoom: CONFIG.defaultZoom
+        });
+
+        // Add navigation controls
+        map.addControl(new mapboxgl.NavigationControl());
+
+        // Fetch and display restaurants
+        async function loadRestaurants() {
+            try {
+                const response = await fetch(CONFIG.apiEndpoint);
+                
+                if (!response.ok) {
+                    throw new Error(`API request failed: ${response.status}`);
+                }
+                
+                const venues = await response.json();
+                
+                // Hide loading indicator
+                document.getElementById('loading').style.display = 'none';
+                
+                if (!venues || venues.length === 0) {
+                    console.warn('No venues found');
+                    return;
+                }
+                
+                // Add markers for each venue
+                const bounds = new mapboxgl.LngLatBounds();
+                
+                venues.forEach(venue => {
+                    // Extract data from Vemos API structure
+                    const name = venue.general?.name;
+                    const location = venue.general?.location;
+                    
+                    // Validate we have the required data
+                    if (!name || !location || !location.lat || !location.lng) {
+                        console.warn('Venue missing required data:', venue);
+                        return;
+                    }
+                    
+                    // Parse coordinates (they come as strings in the API)
+                    const lat = parseFloat(location.lat);
+                    const lng = parseFloat(location.lng);
+                    
+                    if (isNaN(lat) || isNaN(lng)) {
+                        console.warn('Invalid coordinates for venue:', name);
+                        return;
+                    }
+                    
+                    const coordinates = [lng, lat]; // Mapbox uses [longitude, latitude]
+                    
+                    // Build address string
+                    const addressParts = [
+                        location.address,
+                        location.city,
+                        location.state,
+                        location.postal
+                    ].filter(Boolean);
+                    const fullAddress = addressParts.join(', ');
+                    
+                    // Get contact info
+                    const phone = venue.general?.contact?.phone;
+                    
+                    // Create popup content
+                    const popupContent = `
+                        <div class="popup-title">${name}</div>
+                        ${fullAddress ? `<div class="popup-address">${fullAddress}</div>` : ''}
+                        ${phone ? `<div class="popup-cuisine">📞 ${phone}</div>` : ''}
+                        <a href="https://vemos.io" target="_blank" class="popup-link">View on Vemos →</a>
+                    `;
+                    
+                    // Create popup
+                    const popup = new mapboxgl.Popup({ offset: 25 })
+                        .setHTML(popupContent);
+                    
+                    // Create marker
+                    const marker = new mapboxgl.Marker({
+                        color: '#FF6B6B' // Customize marker color
+                    })
+                        .setLngLat(coordinates)
+                        .setPopup(popup)
+                        .addTo(map);
+                    
+                    // Extend bounds to include this venue
+                    bounds.extend(coordinates);
+                });
+                
+                // Fit map to show all venues
+                if (venues.length > 0) {
+                    map.fitBounds(bounds, {
+                        padding: 50,
+                        maxZoom: 15
+                    });
+                }
+                
+            } catch (error) {
+                console.error('Error loading venues:', error);
+                document.getElementById('loading').innerHTML = 
+                    'Error loading venues. Please check your API endpoint.';
+            }
+        }
+
+        // Load restaurants when map is ready
+        map.on('load', loadRestaurants);
+    </script>
+</body>
+</html>
