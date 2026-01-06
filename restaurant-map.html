@@ -66,19 +66,49 @@
     <script>
         // CONFIGURATION
         const CONFIG = {
-            // Replace with your Mapbox access token
-            mapboxToken: 'pk.eyJ1IjoicGFyYWd2ZW1vcyIsImEiOiJjbWsxdnRtZmcwOXBtM2Vwd3VobWQwN2ZoIn0.2trcui0rSsW6eFTIMydgLg',
-            
-            // Vemos API endpoint
-            apiEndpoint: 'https://api-v3.vemos.io/venue',
+            // Mapbox token and Vemos API key will be loaded from Netlify Function
+            configEndpoint: '/.netlify/functions/get-config',
+            venuesEndpoint: '/.netlify/functions/get-venues',
             
             // Default map center (will auto-adjust to fit all restaurants)
             defaultCenter: [-98.5795, 39.8283], // Center of USA
             defaultZoom: 4
         };
 
-        // Initialize Mapbox
-        mapboxgl.accessToken = CONFIG.mapboxToken;
+        let map;
+
+        // Load configuration from Netlify Function
+        async function initializeMap() {
+            try {
+                // Fetch Mapbox token from secure endpoint
+                const configResponse = await fetch(CONFIG.configEndpoint);
+                if (!configResponse.ok) {
+                    throw new Error('Failed to load configuration');
+                }
+                const config = await configResponse.json();
+                
+                // Initialize Mapbox with token from environment variable
+                mapboxgl.accessToken = config.mapboxToken;
+
+                map = new mapboxgl.Map({
+                    container: 'map',
+                    style: 'mapbox://styles/mapbox/streets-v12',
+                    center: CONFIG.defaultCenter,
+                    zoom: CONFIG.defaultZoom
+                });
+
+                // Add navigation controls
+                map.addControl(new mapboxgl.NavigationControl());
+
+                // Load venues when map is ready
+                map.on('load', loadRestaurants);
+                
+            } catch (error) {
+                console.error('Error initializing map:', error);
+                document.getElementById('loading').innerHTML = 
+                    'Error loading map configuration. Please check your setup.';
+            }
+        }
 
         const map = new mapboxgl.Map({
             container: 'map',
@@ -93,7 +123,8 @@
         // Fetch and display restaurants
         async function loadRestaurants() {
             try {
-                const response = await fetch(CONFIG.apiEndpoint);
+                // Fetch venues through Netlify Function (which securely uses API key)
+                const response = await fetch(CONFIG.venuesEndpoint);
                 
                 if (!response.ok) {
                     throw new Error(`API request failed: ${response.status}`);
@@ -185,8 +216,8 @@
             }
         }
 
-        // Load restaurants when map is ready
-        map.on('load', loadRestaurants);
+        // Initialize map when page loads
+        initializeMap();
     </script>
 </body>
 </html>
