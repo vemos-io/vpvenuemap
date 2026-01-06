@@ -110,16 +110,6 @@
             }
         }
 
-        const map = new mapboxgl.Map({
-            container: 'map',
-            style: 'mapbox://styles/mapbox/streets-v12', // You can change this style
-            center: CONFIG.defaultCenter,
-            zoom: CONFIG.defaultZoom
-        });
-
-        // Add navigation controls
-        map.addControl(new mapboxgl.NavigationControl());
-
         // Fetch and display restaurants
         async function loadRestaurants() {
             try {
